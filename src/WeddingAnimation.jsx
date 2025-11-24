@@ -24,19 +24,21 @@ const getUserName = () => {
 
 function WeddingAnimation() {
   const [currentFrame, setCurrentFrame] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false); // Don't start until images are loaded
   const [hasPaused, setHasPaused] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [userName] = useState(() => getUserName());
   const [audioStarted, setAudioStarted] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const animationRef = useRef(null);
-  const preloadedImages = useRef(new Set());
+  const preloadedImages = useRef(new Map()); // Use Map to store Image objects
   const audioRef = useRef(null);
   const frameRef = useRef(0); // Track frame in ref to avoid state update issues
   const lastFrameTimeRef = useRef(0);
   const animationStateRef = useRef({
-    isPlaying: true,
+    isPlaying: false,
     hasPaused: false,
     isComplete: false,
   });
@@ -65,21 +67,66 @@ function WeddingAnimation() {
     }
   }, [isMuted]);
 
-  // Preload images ahead of current frame
+  // Preload all images before starting animation
   useEffect(() => {
-    const preloadCount = 5; // Preload 5 frames ahead
-    for (let i = 1; i <= preloadCount; i++) {
-      const frameToPreload = currentFrame + i;
-      if (
-        frameToPreload < TOTAL_FRAMES &&
-        !preloadedImages.current.has(frameToPreload)
-      ) {
+    let loadedCount = 0;
+    let cancelled = false;
+
+    const loadImage = (frameNum) => {
+      return new Promise((resolve) => {
         const img = new Image();
-        img.src = getImageSrc(frameToPreload);
-        preloadedImages.current.add(frameToPreload);
+
+        img.onload = () => {
+          if (!cancelled) {
+            loadedCount++;
+            setLoadingProgress(Math.round((loadedCount / TOTAL_FRAMES) * 100));
+            preloadedImages.current.set(frameNum, img);
+            resolve(img);
+          }
+        };
+
+        img.onerror = () => {
+          if (!cancelled) {
+            // Even if one image fails, continue loading others
+            loadedCount++;
+            setLoadingProgress(Math.round((loadedCount / TOTAL_FRAMES) * 100));
+            // Store null for failed images so we know they were attempted
+            preloadedImages.current.set(frameNum, null);
+            resolve(null);
+          }
+        };
+
+        img.src = getImageSrc(frameNum);
+      });
+    };
+
+    // Load all images with controlled concurrency (load 10 at a time to avoid overwhelming)
+    const loadAllImages = async () => {
+      const batchSize = 10;
+      for (let i = 0; i < TOTAL_FRAMES; i += batchSize) {
+        if (cancelled) break;
+
+        const batch = [];
+        for (let j = 0; j < batchSize && i + j < TOTAL_FRAMES; j++) {
+          batch.push(loadImage(i + j));
+        }
+
+        await Promise.all(batch);
       }
-    }
-  }, [currentFrame]);
+
+      if (!cancelled) {
+        setIsLoading(false);
+        setIsPlaying(true); // Start animation once all images are loaded
+        animationStateRef.current.isPlaying = true;
+      }
+    };
+
+    loadAllImages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []); // Only run once on mount
 
   // Sync ref state with actual state
   useEffect(() => {
@@ -195,7 +242,7 @@ function WeddingAnimation() {
     setIsPlaying(true);
     setHasPaused(false);
     setIsComplete(false);
-    preloadedImages.current.clear();
+    // Don't clear preloaded images - they're already loaded
     // Update ref state
     animationStateRef.current = {
       isPlaying: true,
@@ -226,81 +273,95 @@ function WeddingAnimation() {
         Your browser does not support the audio element.
       </audio>
 
-      <div className="wedding-frame-wrapper">
-        <img
-          src={getImageSrc(currentFrame)}
-          alt={`Wedding animation frame ${currentFrame}`}
-          className="wedding-frame"
-          draggable={false}
-        />
-        {userName && (
-          <div className="invitation-text">{userName}, you are invited!</div>
-        )}
-      </div>
+      {isLoading ? (
+        <div className="loading-screen">
+          <div className="loading-content">
+            <div className="loading-spinner"></div>
+            <div className="loading-text">Loading invitation...</div>
+            <div className="loading-progress">{loadingProgress}%</div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="wedding-frame-wrapper">
+            <img
+              src={getImageSrc(currentFrame)}
+              alt={`Wedding animation frame ${currentFrame}`}
+              className="wedding-frame"
+              draggable={false}
+            />
+            {userName && (
+              <div className="invitation-text">
+                {userName}, you are invited!
+              </div>
+            )}
+          </div>
 
-      {hasPaused && !isComplete && (
-        <div className="click-hint">Click to continue</div>
-      )}
-
-      <div className="controls">
-        <button
-          className="control-button mute-button"
-          onClick={handleMuteToggle}
-          aria-label={isMuted ? "Unmute" : "Mute"}
-        >
-          {isMuted ? (
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M11 5L6 9H2v6h4l5 4V5z" />
-              <line x1="23" y1="9" x2="17" y2="15" />
-              <line x1="17" y1="9" x2="23" y2="15" />
-            </svg>
-          ) : (
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M11 5L6 9H2v6h4l5 4V5z" />
-              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-            </svg>
+          {hasPaused && !isComplete && (
+            <div className="click-hint">Click to continue</div>
           )}
-        </button>
 
-        <button
-          className="control-button restart-button"
-          onClick={handleRestart}
-          aria-label="Restart"
-        >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="23 4 23 10 17 10" />
-            <polyline points="1 20 1 14 7 14" />
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-          </svg>
-        </button>
-      </div>
+          <div className="controls">
+            <button
+              className="control-button mute-button"
+              onClick={handleMuteToggle}
+              aria-label={isMuted ? "Unmute" : "Mute"}
+            >
+              {isMuted ? (
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M11 5L6 9H2v6h4l5 4V5z" />
+                  <line x1="23" y1="9" x2="17" y2="15" />
+                  <line x1="17" y1="9" x2="23" y2="15" />
+                </svg>
+              ) : (
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M11 5L6 9H2v6h4l5 4V5z" />
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+                </svg>
+              )}
+            </button>
+
+            <button
+              className="control-button restart-button"
+              onClick={handleRestart}
+              aria-label="Restart"
+            >
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="23 4 23 10 17 10" />
+                <polyline points="1 20 1 14 7 14" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

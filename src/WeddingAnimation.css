@@ -142,3 +142,53 @@
   height: 100%;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
+
+.loading-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #a21319;
+  z-index: 100;
+}
+
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(181, 183, 107, 0.2);
+  border-top-color: #b5b76b;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loading-text {
+  color: #b5b76b;
+  font-size: 18px;
+  font-weight: 300;
+  letter-spacing: 2px;
+  font-family: "Georgia", "Times New Roman", serif;
+}
+
+.loading-progress {
+  color: #b5b76b;
+  font-size: 14px;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

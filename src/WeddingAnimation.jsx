@@ -33,6 +33,13 @@ function WeddingAnimation() {
   const animationRef = useRef(null);
   const preloadedImages = useRef(new Set());
   const audioRef = useRef(null);
+  const frameRef = useRef(0); // Track frame in ref to avoid state update issues
+  const lastFrameTimeRef = useRef(0);
+  const animationStateRef = useRef({
+    isPlaying: true,
+    hasPaused: false,
+    isComplete: false,
+  });
 
   // Initialize audio (but don't play until user interaction)
   useEffect(() => {
@@ -74,41 +81,91 @@ function WeddingAnimation() {
     }
   }, [currentFrame]);
 
-  // Animation loop
+  // Sync ref state with actual state
   useEffect(() => {
-    if (!isPlaying || isComplete) return;
+    animationStateRef.current = {
+      isPlaying,
+      hasPaused,
+      isComplete,
+    };
+  }, [isPlaying, hasPaused, isComplete]);
+
+  // Sync frame ref with state
+  useEffect(() => {
+    frameRef.current = currentFrame;
+  }, [currentFrame]);
+
+  // Animation loop using requestAnimationFrame for smoother playback
+  useEffect(() => {
+    if (!isPlaying || isComplete) {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
+      return;
+    }
 
     const fps = 30; // Adjust frame rate as needed
-    const interval = 1000 / fps;
+    const frameInterval = 1000 / fps; // ~33.33ms per frame
 
-    animationRef.current = setInterval(() => {
-      setCurrentFrame((prevFrame) => {
-        const nextFrame = prevFrame + 1;
+    const animate = (currentTime) => {
+      // Initialize lastFrameTime on first call
+      if (lastFrameTimeRef.current === 0) {
+        lastFrameTimeRef.current = currentTime;
+      }
+
+      const elapsed = currentTime - lastFrameTimeRef.current;
+
+      // Only update frame if enough time has passed
+      if (elapsed >= frameInterval) {
+        const state = animationStateRef.current;
+        const currentFrameNum = frameRef.current;
+
+        // Ensure we don't skip frames - advance one at a time
+        const nextFrame = Math.min(currentFrameNum + 1, TOTAL_FRAMES - 1);
 
         // Check if we should pause at the initial pause frame
-        if (!hasPaused && nextFrame >= PAUSE_FRAME) {
+        if (!state.hasPaused && nextFrame >= PAUSE_FRAME) {
+          setCurrentFrame(PAUSE_FRAME);
           setIsPlaying(false);
           setHasPaused(true);
-          return PAUSE_FRAME;
+          lastFrameTimeRef.current = 0; // Reset for next animation
+          animationRef.current = null;
+          return;
         }
 
         // Check if we've reached the end
-        if (nextFrame >= TOTAL_FRAMES) {
+        if (nextFrame >= TOTAL_FRAMES - 1) {
+          setCurrentFrame(TOTAL_FRAMES - 1);
           setIsPlaying(false);
           setIsComplete(true);
-          return TOTAL_FRAMES - 1;
+          lastFrameTimeRef.current = 0; // Reset for next animation
+          animationRef.current = null;
+          return;
         }
 
-        return nextFrame;
-      });
-    }, interval);
+        // Update frame - advance exactly one frame
+        setCurrentFrame(nextFrame);
+        // Account for the time used, but keep any extra time for next frame
+        lastFrameTimeRef.current = currentTime - (elapsed % frameInterval);
+      }
+
+      // Continue animation loop - React will clean up when isPlaying becomes false
+      animationRef.current = requestAnimationFrame(animate);
+    };
+
+    // Start animation
+    lastFrameTimeRef.current = 0;
+    animationRef.current = requestAnimationFrame(animate);
 
     return () => {
       if (animationRef.current) {
-        clearInterval(animationRef.current);
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
       }
+      lastFrameTimeRef.current = 0;
     };
-  }, [isPlaying, hasPaused, isComplete]);
+  }, [isPlaying, isComplete]);
 
   // Handle click to resume
   const handleClick = () => {
@@ -125,16 +182,26 @@ function WeddingAnimation() {
     e.stopPropagation(); // Prevent triggering the main click handler
     // Start audio if not already started
     startAudio();
-    // Clear animation interval
+    // Clear animation
     if (animationRef.current) {
-      clearInterval(animationRef.current);
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
     }
+    // Reset timing
+    lastFrameTimeRef.current = 0;
     // Reset all state
+    frameRef.current = 0;
     setCurrentFrame(0);
     setIsPlaying(true);
     setHasPaused(false);
     setIsComplete(false);
     preloadedImages.current.clear();
+    // Update ref state
+    animationStateRef.current = {
+      isPlaying: true,
+      hasPaused: false,
+      isComplete: false,
+    };
     // Restart audio
     if (audioRef.current && audioStarted) {
       audioRef.current.currentTime = 0;
@@ -167,7 +234,7 @@ function WeddingAnimation() {
           draggable={false}
         />
         {userName && (
-          <div className="invitation-text">{userName}, you are invited.</div>
+          <div className="invitation-text">{userName}, you are invited!</div>
         )}
       </div>
 

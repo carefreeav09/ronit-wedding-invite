@@ -295,11 +295,9 @@ function WeddingAnimation() {
                 {userName}, you are invited!
               </div>
             )}
-          </div>
 
-          {hasPaused && !isComplete && (
-            <div className="click-hint">Click to continue</div>
-          )}
+            <div className="name-text">Ronit & Binisha and Kritika & Fabio</div>
+          </div>
 
           <div className="controls">
             <button

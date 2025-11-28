@@ -62,10 +62,29 @@
     width: 150%;
     height: 150%;
   }
+
+  .name-text {
+    font-size: clamp(12px, 6vw, 24px);
+    letter-spacing: clamp(0.5px, 0.2vw, 1.5px);
+    padding: 0 20px;
+    white-space: normal;
+    word-wrap: break-word;
+    bottom: 1%;
+  }
 }
 
 @media (max-width: 480px) {
   .invitation-text {
+    font-size: clamp(12px, 6vw, 24px);
+    letter-spacing: clamp(0.5px, 0.2vw, 1.5px);
+    padding: 0 20px;
+    white-space: normal;
+    word-wrap: break-word;
+
+    width: 100%;
+  }
+
+  .name-text {
     font-size: clamp(12px, 6vw, 24px);
     letter-spacing: clamp(0.5px, 0.2vw, 1.5px);
     padding: 0 20px;
@@ -104,9 +123,9 @@
 
 .controls {
   position: absolute;
-  bottom: 30px;
-  right: 0%;
-  transform: translateX(-50%);
+  bottom: 5px;
+  right: 1%;
+
   display: flex;
   gap: 20px;
   align-items: center;
@@ -191,4 +210,19 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+.name-text {
+  position: absolute;
+  bottom: 4%;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #b5b76b;
+  font-size: clamp(16px, 4vw, 48px);
+  font-weight: 600;
+  letter-spacing: clamp(1px, 0.5vw, 3px);
+  text-align: center;
+  text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.7), 0 0 20px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  white-space: nowrap;
 }
